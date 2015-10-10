@@ -528,6 +528,12 @@ M.fetch_frontend = function(self, max_path_length)
   end
   local path = self.req.parsed_url['path']
   local host = self.req.parsed_url['host']
+  if self.req.headers ~= nil then
+    if self.req.headers.host ~= nil then
+      -- allow "host: ..." header to override
+      host = self.req.headers.host
+    end
+  end
   local keys, frontends = {
     'frontend:' .. host
   }, {
