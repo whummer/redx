@@ -1,19 +1,30 @@
 local M = { }
 M.connect = function()
-  local redis = require("resty.redis")
-  local red = redis:new()
-  red:set_timeout(config.redis_timeout)
-  local ok, err = red:connect(config.redis_host, config.redis_port)
-  if not (ok) then
+  local redis_connector = require("resty.redis.connector")
+  local rconn = redis_connector:new()
+  local redis_configs = {
+    url = "sentinel://" .. config.redis_master_name .. ":a",
+    sentinels = {
+      {
+        host = config.redis_sentinel_host,
+        port = config.redis_sentinel_port
+      }
+    }
+  }
+  local red, err = rconn:connect(redis_configs)
+  if not (red ~= nil and (function()
+    local _base_0 = red
+    local _fn_0 = _base_0.mget
+    return function(...)
+      return _fn_0(_base_0, ...)
+    end
+  end)() ~= nil) then
     return {
       connection_error = "Error connecting to redis: " .. err
     }
-  else
-    if type(config.redis_password) == 'string' and #config.redis_password > 0 then
-      red:auth(config.redis_password)
-    end
-    return red
   end
+  red:set_timeout(config.redis_timeout)
+  return red
 end
 M.finish = function(red)
   if config.redis_keepalive_pool_size == 0 then
@@ -530,7 +541,6 @@ M.fetch_frontend = function(self, max_path_length)
   local host = self.req.parsed_url['host']
   if self.req.headers ~= nil then
     if self.req.headers.host ~= nil then
-      -- allow "host: ..." header to override
       host = self.req.headers.host
     end
   end

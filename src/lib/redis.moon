@@ -1,17 +1,32 @@
 M = {}
 
 M.connect = () ->
-    -- connect to redis
-    redis = require "resty.redis"
-    red = redis\new()
-    red\set_timeout(config.redis_timeout)
-    ok, err = red\connect(config.redis_host, config.redis_port)
-    unless ok
+    -- connect to redis (regular)
+    -- redis = require "resty.redis"
+    -- red = redis\new()
+
+    -- connect to redis (sentinel)
+    redis_connector = require "resty.redis.connector"
+    rconn = redis_connector\new()
+    redis_configs = {
+        url: "sentinel://" .. config.redis_master_name .. ":a",
+        sentinels: {
+            { host: config.redis_sentinel_host, port: config.redis_sentinel_port },
+        }
+    }
+    red, err = rconn\connect(redis_configs)
+    unless red != nil and red\mget != nil
         return connection_error: "Error connecting to redis: " .. err
-    else
-        if type(config.redis_password) == 'string' and #config.redis_password > 0
-            red\auth(config.redis_password)
-        return red
+    red\set_timeout(config.redis_timeout)
+    return red
+
+    -- ok, err = red\connect(config.redis_host, config.redis_port)
+    -- unless ok
+    --     return connection_error: "Error connecting to redis: " .. err
+    -- else
+    --     if type(config.redis_password) == 'string' and #config.redis_password > 0
+    --         red\auth(config.redis_password)
+    --     return red
 
 M.finish = (red) ->
     if config.redis_keepalive_pool_size == 0
@@ -231,6 +246,10 @@ M.delete_batch_data = (data) ->
 M.fetch_frontend = (@, max_path_length=3) ->
     path = @req.parsed_url['path']
     host = @req.parsed_url['host']
+    if self.req.headers ~= nil then
+        if self.req.headers.host ~= nil then
+           -- allow "host: ..." header to override
+           host = self.req.headers.host
     keys, frontends = {'frontend:' .. host}, {host}
     p, count = '', 0
     for k,v in pairs library.split(path, '/')
@@ -240,6 +259,11 @@ M.fetch_frontend = (@, max_path_length=3) ->
                 p = p .. "/#{v}"
                 table.insert(keys, 1, 'frontend:' .. host .. p)
                 table.insert(frontends, 1, host .. p)
+    -- whu: make sure we search for 'frontend:<host>' AS WELL AS 
+    -- 'frontend:<host>/' if the path is empty ('/')
+    -- if path == '/'
+    --    table.insert(keys, 1, 'frontend:' .. host .. '/')
+
     red = M.connect()
     return nil if red['connection_error']
     resp, err = red\mget(unpack(keys))

@@ -1,0 +1,3 @@
+[submodule "lua-resty-redis-connector"]
+	path = lua-resty-redis-connector
+	url = https://github.com/pintsized/lua-resty-redis-connector

@@ -19,5 +19,4 @@ for i, plugin in ipairs(config.plugins) do
     plugin = loadstring(require_string)
   }
 end
-math.randomseed(socket.gettime() * 1000)
-return library.log('Redis host: ' .. config.redis_host .. ':' .. config.redis_port)
+return math.randomseed(socket.gettime() * 1000)
